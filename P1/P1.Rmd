@@ -636,6 +636,7 @@ Selanjutnya melakukan pembagian data dan mengubahnya menjadi data deret waktu.
 #membagi data menjadi training dan testing
 training<-data3[1:192,2]
 testing<-data3[193:241,2]
+
 training.ts<-ts(training, frequency = 13)
 testing.ts<-ts(testing, frequency = 13)
 ```
