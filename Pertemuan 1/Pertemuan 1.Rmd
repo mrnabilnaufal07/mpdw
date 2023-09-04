@@ -151,7 +151,7 @@ akurasi1.train = data.frame(Model_Winter = c("Winter1","Winter1 optimal"),
                             Nilai_MSE=c(MSE1,MSE1.opt),Nilai_RMSE=c(RMSE1,RMSE1.opt))
 akurasi1.train
 ```
-Akurasi pada model `Winter1 optimal` dengan data training lebih baik dibandingkan model `Winter1`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil. Namun, bukan bearti salah satu model tidak dapat digunakan. Oleh karena itu, akan dilihat juga akurasi dari data uji kedua model tersebut dengan tambahan `Nilai MAPE` sebagai tolak ukur kelayakan model.
+Akurasi pada model `Winter1 optimal` dengan data training lebih baik dibandingkan model `Winter1`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil. Selanjutnya,akan dilihat juga akurasi dari data uji kedua model tersebut dengan tambahan `Nilai MAPE` sebagai tolak ukur kelayakan model pada data uji.
 
 #### Akurasi Data Uji
 
@@ -182,4 +182,4 @@ Nilai_MAPE=c(MAPEtesting1, MAPEtesting1.opt))
 
 akurasi1.test
 ```
-Menurut `Lewis (1982)`, nilai `MAPE 20-50%` dapat diinterpretasikan sebagai model yang `Wajar`. Jika nilai `MAPE >= 50%` maka model dikatakan `tidak akurat`. Oleh karena itu baik model `Winter1` maupun `Winter1 optimal` masih bisa digunakan untuk prediksi.
+Menurut `Lewis (1982)`, nilai `MAPE 20-50%` dapat diinterpretasikan sebagai model yang `Wajar`. Jika nilai `MAPE >= 50%` maka model dikatakan `tidak akurat`. Oleh karena model `Winter1` lebih baik dari segi akurasi pada data `uji`.
