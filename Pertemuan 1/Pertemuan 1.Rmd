@@ -17,7 +17,6 @@ library("TSA")
 ```
 
 ## Impor Data
-
 ```{r}
 library(rio)
 data <- import("https://raw.githubusercontent.com/mrnabilnaufal07/mpdw/main/Data/Data-Nabil.csv")
@@ -31,7 +30,7 @@ View(data)
 str(data)
 dim(data)
 ```
-Data terdiri dari dua peubah yaitu `Periode` dan `Meninggal` dan 172 baris. Kedua peubah bertipe integer. Data perlu diubah agar terbaca sebagai data deret waktu dengan fungsi `ts()`
+Data terdiri dari dua peubah yaitu `Periode` dan `Meninggal` serta 172 baris. Kedua peubah bertipe integer. Data perlu diubah agar terbaca sebagai data deret waktu dengan fungsi `ts()`
 ```{r}
 data.ts <- ts(data$Meninggal)
 ```
@@ -152,7 +151,7 @@ akurasi1.train = data.frame(Model_Winter = c("Winter1","Winter1 optimal"),
                             Nilai_MSE=c(MSE1,MSE1.opt),Nilai_RMSE=c(RMSE1,RMSE1.opt))
 akurasi1.train
 ```
-Akurasi pada model `Winter1 optimal` dengan data training lebih baik dibandingkan model `Winter1`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil.
+Akurasi pada model `Winter1 optimal` dengan data training lebih baik dibandingkan model `Winter1`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil. Namun, bukan bearti salah satu model tidak dapat digunakan. Oleh karena itu, akan dilihat juga akurasi dari data uji kedua model tersebut dengan tambahan `Nilai MAPE` sebagai tolak ukur kelayakan model.
 
 #### Akurasi Data Uji
 
@@ -165,16 +164,22 @@ SSEtesting1<-sum(selisih1^2)
 MSEtesting1<-SSEtesting1/length(testing.ts)
 RMSEtesting1<-sqrt(MSEtesting1)
 
+# memuat paket MLmetrics
+library(MLmetrics)
+# menghitung MAPE
+MAPEtesting1 <- MAPE(as.numeric(unlist(forecast.testing1)), as.numeric(unlist(testing.ts)))
+
 forecast.testing1.opt<-data.frame(forecast.testing1.opt)
 selisih1.opt<-forecast.testing1.opt-testing.ts
 SSEtesting1.opt<-sum(selisih1.opt^2)
 MSEtesting1.opt<-SSEtesting1.opt/length(testing.ts)
 RMSEtesting1.opt<-sqrt(MSEtesting1.opt)
+MAPEtesting1.opt <- MAPE(as.numeric(unlist(forecast.testing1.opt)), as.numeric(unlist(testing.ts)))
 
 akurasi1.test = data.frame(Model_Winter = c("Winter1","Winter1 optimal"),
-                            Nilai_SSE=c(SSEtesting1,SSEtesting1.opt), Nilai_MSE=c(MSEtesting1,MSEtesting1.opt),Nilai_RMSE=c(RMSEtesting1,RMSEtesting1.opt))
+                            Nilai_SSE=c(SSEtesting1,SSEtesting1.opt), Nilai_MSE=c(MSEtesting1,MSEtesting1.opt),Nilai_RMSE=c(RMSEtesting1,RMSEtesting1.opt),
+Nilai_MAPE=c(MAPEtesting1, MAPEtesting1.opt))
 
 akurasi1.test
-
 ```
-Akurasi pada model `Winter1` dengan data testing lebih baik dibandingkan model `Winter1 optimal`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil.
+Menurut `Lewis (1982)`, nilai `MAPE 20-50%` dapat diinterpretasikan sebagai model yang `Wajar`. Jika nilai `MAPE >= 50%` maka model dikatakan `tidak akurat`. Oleh karena itu baik model `Winter1` maupun `Winter1 optimal` masih bisa digunakan untuk prediksi.
