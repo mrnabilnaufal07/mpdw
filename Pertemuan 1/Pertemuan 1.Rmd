@@ -45,19 +45,20 @@ Membuat plot data deret waktu
 
 ```{r}
 ts.plot(data.ts, xlab="Time Period ", ylab="Death", 
-        main = "Plot Data Banyak Kasus Meninggal Karena Diabetes Mellitus di New York City 2020-2023")
+        main = "Plot Kasus Meninggal Karena Diabetes Mellitus di New York City")
 points(data.ts)
 ```
-Data memiliki pola musiman yang konstan. Oleh karena itu, pemulusan dengan Winter Aditif
+Hasil plot menunjukkan pola musiman aditif. Oleh karena itu, metode pemulusan yang tepat digunakan untuk data tersebut adalah `Holt-Winter aditif`.
 
 ## Pemulusan Data Musiman
 
 Membagi data menjadi data `training` dan data `testing` dengan proporsi 80% data `training` dan 20% data `uji`
 ```{r}
 #membagi data menjadi training dan testing
-training<-data[1:137,2]
-testing<-data3[138:172,2]
+training<-data[1:137,2] #data 1-137 merupakan 80% data pertama
+testing<-data3[138:172,2] #data 138-172 merupakan 20% data selanjutnya
 
+#frecuency menunjukkan banyaknya periode waktu dalam satu musim. Untuk data ini, satu periode diperkirakan terdiri dari 61 periode (hasil eksplorasi)
 training.ts<-ts(training, frequency = 61)
 testing.ts<-ts(testing, frequency = 61)
 ```
@@ -76,13 +77,9 @@ plot(testing.ts, col="green",main="Plot data uji")
 points(testing.ts)
 ```
 
-Metode Holt-Winter untuk peramalan data musiman menggunakan tiga persamaan pemulusan yang terdiri atas persamaan untuk level $(L_t)$, trend $(B_t)$, dan komponen seasonal / musiman $(S_t)$ dengan parameter pemulusan berupa $\alpha$, $\beta$, dan $\gamma$. Metode Holt-Winter musiman terbagi menjadi dua, yaitu metode aditif dan metode multiplikatif. Perbedaan persamaan dan contoh datanya adalah sebagai berikut.
+Metode Holt-Winter untuk peramalan data musiman menggunakan tiga persamaan pemulusan yang terdiri atas persamaan untuk level $(L_t)$, trend $(B_t)$, dan komponen seasonal / musiman $(S_t)$ dengan parameter pemulusan berupa $\alpha$, $\beta$, dan $\gamma$. Metode Holt-Winter musiman terbagi menjadi dua, yaitu metode aditif dan metode multiplikatif.
 
-![](images/Perbandingan%20model%20aditif.png){width="609"}
-
-![](images/example%20additive-multiplicative.png)
-
-Pemulusan data musiman dengan metode Winter dilakukan menggunakan fungsi `HoltWinters()` dengan memasukkan argumen tambahan, yaitu `gamma()` dan `seasonal()` . Arguman `seasonal()` diinisialisasi menyesuaikan jenis musiman, aditif atau multiplikatif.
+Pemulusan data musiman dengan metode Holt-Winter dilakukan menggunakan fungsi `HoltWinters()` dengan memasukkan argumen tambahan, yaitu `gamma()` dan `seasonal()` . Arguman `seasonal()` diinisialisasi menyesuaikan jenis musiman, aditif atau multiplikatif.
 
 ### Winter Aditif
 
@@ -91,40 +88,43 @@ Perhitungan dengan model aditif dilakukan jika plot data asli menunjukkan fluktu
 #### Pemulusan
 
 ```{r}
-#Pemulusan dengan winter aditif 
+#Pemulusan dengan winter aditif dengan alpha=0.2, beta=0.1, dan gamma=0.1
 winter1 <- HoltWinters(training.ts,alpha=0.2,beta=0.1,gamma=0.1,seasonal = "additive")
 winter1$fitted
 xhat1 <- winter1$fitted[,2]
 
+#Pemulusan dengan winter aditif dengan parameter yang dioptimalkan
 winter1.opt<- HoltWinters(training.ts, alpha= NULL,  beta = NULL, gamma = NULL, seasonal = "additive")
 winter1.opt
 winter1.opt$fitted
 xhat1.opt <- winter1.opt$fitted[,2]
 ```
 
-
 #### Peramalan
 
 ```{r}
-#Forecast
-forecast1 <- predict(winter1, n.ahead = 35)
-forecast1.opt <- predict(winter1.opt, n.ahead = 35)
+#Forecast data uji
+forecast.testing1 <- predict(winter1, n.ahead = 35) #n.ahead=35 menunjukkan banyaknya data yang akan dilakukan peramalan, dalam hal ini 35
+
+forecast.testing1.opt <- predict(winter1.opt, n.ahead = 35) #untuk parameter yang dioptimalkan
 ```
 
 #### Plot Deret Waktu
 
 ```{r}
 #Plot time series
-plot(training.ts,main="Winter 0.2;0.1;0.1",type="l",col="black",
-     xlim=c(1,5),pch=12)
+plot(training.ts,main="Winter Aditif",type="l",col="black",
+     xlim=c(1,5),pch=1)
 lines(xhat1,type="l",col="red")
 lines(xhat1.opt,type="l",col="blue")
-lines(forecast1,type="l",col="red")
-lines(forecast1.opt,type="l",col="blue")
-legend("topleft",c("Actual Data",expression(paste(winter1)),
-                   expression(paste(winter1.opt))),cex=0.5,
+lines(forecast.testing1,type="l",col="red")
+lines(forecast.testing1.opt,type="l",col="blue")
+legend("topleft",c("Actual Data",expression(paste(winter2)),
+                   expression(paste(winter2.opt))),cex=0.5,
        col=c("black","red","blue"),lty=1)
 ```
+Hasil pemulusan pada forecasting model `Winter1 opt`terlihat lebih baik dibandingkan model `Winter`. Hal ini dapat dilihat dari pola pergerakan hasil pemulusan `Winter1 opt` yang lebih mirip dengan data aktual-nya.
+
 
 #### Akurasi Data Latih
 
@@ -147,32 +147,34 @@ row.names(akurasi1.opt)<- c("SSE1.opt", "MSE1.opt", "RMSE1.opt")
 colnames(akurasi1.opt) <- c("Akurasi")
 akurasi1.opt
 
-akurasi1.train = data.frame(Model_Winter = c("Winter 1","Winter1 optimal"),
+akurasi1.train = data.frame(Model_Winter = c("Winter1","Winter1 optimal"),
                             Nilai_SSE=c(SSE1,SSE1.opt),
                             Nilai_MSE=c(MSE1,MSE1.opt),Nilai_RMSE=c(RMSE1,RMSE1.opt))
 akurasi1.train
 ```
+Akurasi pada model `Winter1 optimal` dengan data training lebih baik dibandingkan model `Winter1`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil.
 
 #### Akurasi Data Uji
 
 ```{r}
 #Akurasi Data Testing
-forecast1<-data.frame(forecast1)
+forecast.testing1<-data.frame(forecast.testing1)
 testing.ts<-data.frame(testing.ts)
-selisih1<-forecast1-testing.ts
+selisih1<-forecast.testing1-testing.ts
 SSEtesting1<-sum(selisih1^2)
 MSEtesting1<-SSEtesting1/length(testing.ts)
 RMSEtesting1<-sqrt(MSEtesting1)
 
-forecast1.opt<-data.frame(forecast1.opt)
-selisih1.opt<-forecast1.opt-testing.ts
+forecast.testing1.opt<-data.frame(forecast.testing1.opt)
+selisih1.opt<-forecast.testing1.opt-testing.ts
 SSEtesting1.opt<-sum(selisih1.opt^2)
 MSEtesting1.opt<-SSEtesting1.opt/length(testing.ts)
 RMSEtesting1.opt<-sqrt(MSEtesting1.opt)
-akurasi1.test = data.frame(Model_Winter = c("Winter 1","Winter1 optimal"),
-                            Nilai_SSE=c(SSEtesting1,SSEtesting1.opt),
-                            Nilai_MSE=c(MSEtesting1,MSEtesting1.opt),Nilai_RMSE=c(RMSEtesting1,RMSEtesting1.opt))
-akurasi1.train
+
+akurasi1.test = data.frame(Model_Winter = c("Winter1","Winter1 optimal"),
+                            Nilai_SSE=c(SSEtesting1,SSEtesting1.opt), Nilai_MSE=c(MSEtesting1,MSEtesting1.opt),Nilai_RMSE=c(RMSEtesting1,RMSEtesting1.opt))
+
+akurasi1.test
 
 ```
-Hasil parameter optimum lebih baik dibandingkan yang biasa. Terlihat dari nilai SSE, MSE, dan RMSE yang lebih kecil
+Akurasi pada model `Winter1` dengan data testing ebih baik dibandingkan model `Winter1 optimal`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil.
