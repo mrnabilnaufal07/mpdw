@@ -177,4 +177,4 @@ akurasi1.test = data.frame(Model_Winter = c("Winter1","Winter1 optimal"),
 akurasi1.test
 
 ```
-Akurasi pada model `Winter1` dengan data testing ebih baik dibandingkan model `Winter1 optimal`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil.
+Akurasi pada model `Winter1` dengan data testing lebih baik dibandingkan model `Winter1 optimal`. Ditandai dengan nilai SSE, MSE, dan RMSE yang lebih kecil.
