@@ -1,16 +1,7 @@
 ---
 title: "Pertemuan 2 - Regresi"
 author: Nabil Naufal-G1401211008
-output:
-  html_document:
-    theme: yeti
-    toc: true
-    toc_float: true
-  word_document: default
-  pdf_document: default
-editor_options: 
-  markdown: 
-    wrap: 72
+output: html_document
 ---
 
 ## *Packages* yang digunakan
