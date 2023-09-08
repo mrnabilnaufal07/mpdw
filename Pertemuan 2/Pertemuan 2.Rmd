@@ -173,6 +173,35 @@ nyata 5%. Untuk nilai $ρ ̂$ optimum yang digunakan adalah $0.46121$.
 rho<- modelCO$rho
 rho
 ```
+Selanjutnya akan dilakukan transformasi secara manual dengan syntax berikut ini.
+
+```{r}
+#Transformasi Manual
+aqi.trans <- df$AQI[-1]-df$AQI[-72]*rho
+CO.trans <- df$CO[-1]-df$CO[-72]*rho
+o3.trans <- df$o3[-1]-df$o3[-72]*rho
+so2.trans <- df$so2[-1]-df$so2[-72]*rho
+modelCOmanual<- lm(aqi.trans~CO.trans+o3.trans+so2.trans)
+summary(modelCOmanual)
+```
+
+Hasil model transformasi bukan merupakan model sesungguhnya. Koefisien regresi masih perlu dicari kembali mengikuti $β_0^*=β_0+ρ ̂β_0$ dan $β_1^*=β_1$.
+
+```{r}
+#Mencari Penduga Koefisien Regresi setelah Transformasi ke Persamaan Awal
+b0bintang <- modelCOmanual$coefficients[-c(2,3,4)]
+b0 <- b0bintang/(1-rho)
+b1 <- modelCOmanual$coefficients[-c(1,3,4)]
+b2 <- modelCOmanual$coefficients[-c(1,2,4)]
+b3 <- modelCOmanual$coefficients[-c(1,2,3)]
+b0
+b1
+b2
+b3
+```
+
+Hasil perhitungan koefisien regresi tersebut akan menghasilkan hasil yang sama dengan model yang dihasilkan menggunakan *packages*.
+
 
 ### Metode Hildreth-Lu
 
@@ -185,44 +214,50 @@ menggunakan packages. Jika menggunakan packages, gunakan `library`
 #Penanganan Autokorelasi Hildreth lu
 # Hildreth-Lu
 hildreth.lu.func<- function(r, model){
-  x <- model.matrix(model)[,-1]
+  x1 <- model.matrix(model)[,2]
+  x2 <- model.matrix(model)[,3]
+  x3 <- model.matrix(model)[,4]
+  
   y <- model.response(model.frame(model))
   n <- length(y)
   t <- 2:n
   y <- y[t]-r*y[t-1]
-  x <- x[t]-r*x[t-1]
+  x1 <- x1[t]-r*x1[t-1]
+  x2 <- x2[t]-r*x2[t-1]
+  x3 <- x3[t]-r*x3[t-1]
   
-  return(lm(y~x))
+  
+  return(lm(y~x1+x2+x3))
 }
 
 #Pencariab rho yang meminimumkan SSE
 r <- c(seq(0.1,0.9, by= 0.1))
-tab <- data.frame("rho" = r, "SSE" = sapply(r, function(i){deviance(hildreth.lu.func(i, model))}))
+tab <- data.frame("rho" = r, "SSE" = sapply(r, function(i){deviance(hildreth.lu.func(i, model_aqi))}))
 round(tab, 4)
 ```
 
 Pertama-tama akan dicari di mana kira-kira $ρ$ yang menghasilkan SSE
-minimum. Pada hasil di atas terlihat $ρ$ minimum ketika 0.1. Namun,
+minimum. Pada hasil di atas terlihat $ρ$ minimum ketika 0.9. Namun,
 hasil tersebut masih kurang teliti sehingga akan dicari kembali $ρ$ yang
 lebih optimum dengan ketelitian yang lebih. Jika sebelumnya jarak antar
 $ρ$ yang dicari adalah 0.1, kali ini jarak antar $ρ$ adalah 0.001 dan
-dilakukan pada selang 0.2 sampai dengan 0.5.
+dilakukan pada selang 0.4 sampai dengan 0.5.
 
 ```{r}
 #Rho optimal di sekitar 0.4
-rOpt <- seq(0.2,0.5, by= 0.001)
-tabOpt <- data.frame("rho" = rOpt, "SSE" = sapply(rOpt, function(i){deviance(hildreth.lu.func(i, model))}))
+rOpt <- seq(0.4,0.5, by= 0.001)
+tabOpt <- data.frame("rho" = rOpt, "SSE" = sapply(rOpt, function(i){deviance(hildreth.lu.func(i, model_aqi))}))
 head(tabOpt[order(tabOpt$SSE),])
 
 #Grafik SSE optimum
 par(mfrow = c(1,1))
 plot(tab$SSE ~ tab$rho , type = "l", xlab = "Rho", ylab = "SSE")
 abline(v = tabOpt[tabOpt$SSE==min(tabOpt$SSE),"rho"], lty = 2, col="red",lwd=2)
-text(x=0.341, y=0.2397500, labels = "rho=0.341", cex = 0.8)
+text(x=0.341, y=0.2397500, labels = "rho=0.461", cex = 0.8)
 ```
 
 Perhitungan yang dilakukan aplikasi `R` menunjukkan bahwa nilai $ρ$
-optimum, yaitu saat SSE terkecil terdapat pada nilai $ρ=0.341$. Hal
+optimum, yaitu saat SSE terkecil terdapat pada nilai $ρ=0.461$. Hal
 tersebut juga ditunjukkan pada plot. Selanjutnya, model dapat didapatkan
 dengan mengevaluasi nilai $ρ$ ke dalam fungsi `hildreth.lu.func`, serta
 dilanjutkan dengan pengujian autokorelasi dengan uji Durbin-Watson.
@@ -232,72 +267,45 @@ yang menjadi persamaan sesungguhnya.
 
 ```{r}
 #Model terbaik
-modelHL <- hildreth.lu.func(0.341, model)
+modelHL <- hildreth.lu.func(0.461, model_aqi)
 summary(modelHL)
 
 #Transformasi Balik
-cat("y = ", coef(modelHL)[1]/(1-0.341), "+", coef(modelHL)[2],"x", sep = "")
+cat("y = ", coef(modelHL)[1]/(1-0.461), "+", coef(modelHL)[2],"x", sep = "")
 ```
 
 Setelah dilakukan tranformasi balik, didapatkan model dengan metode
-Hildreth-Lu sebagai berikut. $$y_i=-1062.032+0.5597492x_t$$
+Hildreth-Lu sebagai berikut. $$y_i=2.68575-0.03142x1_i+0.48393x2_i-0.02506x3_i$$
 
 ```{r}
 #Deteksi autokorelasi
 dwtest(modelHL)
 ```
 
-Hasil uji Durbin-Watson juga menunjukkan bawah nilai DW sebesar $1.4092$
+Hasil uji Durbin-Watson juga menunjukkan bawah nilai DW sebesar $0.9976$
 berada pada selang daerah tidak ada autokorelasi, yaitu pada rentang DU
-\< DW \< 4-DU atau $1.331 < DW < 2.669$. Hal tersebut juga didukung oleh
-*p-value* sebesar $0.09404$, di mana *p-value* \> $\alpha$=5%. Artinya
+\< DW \< 4-DU. Hal tersebut juga didukung oleh
+*p-value* sebesar $0.9976$, di mana *p-value* \> $\alpha$=5%. Artinya
 tak tolak $H_0$ atau belum cukup bukti menyatakan bahwa ada autokorelasi
-dalam data nilai IPM dengan metode Hildreth-Lu pada taraf nyata 5%.
+dalam data nilai AQI dengan metode Hildreth-Lu pada taraf nyata 5%.
 
 Terakhir, akan dibandingkan nilai SSE dari ketiga metode (metode awal,
 metode Cochrane-Orcutt, dan Hildreth-Lu).
 
 ```{r}
 #Perbandingan
-sseModelawal <- anova(model)$`Sum Sq`[-1]
-sseModelCO <- anova(modelCOmanual)$`Sum Sq`[-1]
-sseModelHL <- anova(modelHL)$`Sum Sq`[-1]
-mseModelawal <- sseModelawal/length(ipm)
-mseModelCO <- sseModelCO/length(ipm)
-mseModelHL <- sseModelHL/length(ipm)
+sseModelawal <- anova(model_aqi)$`Sum Sq`[-c(1,2,3)]
+sseModelCO <- anova(modelCOmanual)$`Sum Sq`[-c(1,2,3)]
+sseModelHL <- anova(modelHL)$`Sum Sq`[-c(1,2,3)]
+mseModelawal <- sseModelawal/length(df$AQI)
+mseModelCO <- sseModelCO/length(df$AQI)
+mseModelHL <- sseModelHL/length(df$AQI)
 akurasi <- matrix(c(sseModelawal,sseModelCO,sseModelHL,
                     mseModelawal,mseModelCO,mseModelHL),nrow=2,ncol=3,byrow = T)
-colnames(akurasi) <- c("Model Awal", "Model Cochrane-Orcutt", "Model Hildreth-Lu")
+colnames(akurasi) <- c("Model_Awal", "Model_Cochrane-Orcutt", "Model_Hildreth-Lu")
 row.names(akurasi) <- c("SSE","MSE")
 akurasi
 ```
 
-Berdasarkan hasil tersebut dapat diketahui bahwa hasil penanganan
-autokorelasi dengan metode Cochrane-Orcutt dan Hildreth-Lu memiliki SSE
-yang sama, sebesar $0.23975$ dan lebih baik dibandingkan model awal
-ketika autokorelasi masih terjadi, yaitu sebesar $0.3286364$.
-
-# Simpulan
-
-Autokorelasi yang terdapat pada data IPM terjadi akibat adanya korelasi
-di antara unsur penyusunnya. Indikator IPM yang erat hubungannya dengan
-perekonomian sangat rawan menjadi penyebab adanya autokorelasi. Adanya
-autokorelasi menyebabkan model regresi kurang baik karena akan
-meingkatkan galatnya. Autokorelasi dapat dideteksi secara eksploratif
-melalui plot sisaan, ACF, dan PACF, serta dengan uji formal
-Durbin-Watson. Namun, autokorelasi tersebut dapat ditangani dengan
-metode Cochrane-Orcutt dan Hildreth-Lu. Kedua metode menghasilkan nilai
-SSE yang sama, artinya keduanya baik untuk digunakan.
-
-# Daftar Pustaka
-
-Aprianto A, Debataraja NN, Imro'ah N. 2020. Metode cochrane-orcutt untuk
-mengatasi autokorelasi pada estimasi parameter ordinary least squares.
-*Bimaster : Buletin Ilmiah Matematika, Statistika dan Terapannya*.
-9(1):95--102. <doi:10.26418/bbimst.v9i1.38590>.
-
-BPS. 2021a. *Indeks Pembangunan Manusia 2020*. Jakarta (ID): Badan Pusat
-Statistik.
-
-BPS. 2021b. Indeks Pembangunan Manusia (IPM) 2021. *Berita Resmi
-Statistik*., siap terbit.
+Hasil penanganan autokorelasi dengan metode Cochrane-Orcutt dan Hildreth-Lu imemiliki nilai `SSE` sebesar $7.9059861$. Jauh lebih rendah dibandingkan model awal dengan SSE sebesar $33.6474846 $. Hal ini menunjukkan bahwa model setelah penanganan lebih baik dibandingkan model awal
+ketika autokorelasi masih terjadi.
