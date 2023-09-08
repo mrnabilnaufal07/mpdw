@@ -1,1 +1,312 @@
+---
+title: "Pertemuan 2 - Regresi"
+author: Nabil Naufal-G1401211008
+output:
+  html_document:
+    theme: yeti
+    toc: true
+    toc_float: true
+  word_document: default
+  pdf_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
 
+## *Packages* yang digunakan
+
+```{r}
+library(dplyr)
+library(TTR)
+library(forecast)
+library(lmtest) #digunakan untuk uji formal pendeteksian autokorelasi
+library(orcutt) #untuk membuat model regresi Cochrane-Orcutt
+library(HoRM) #untuk membuat model regresi Hildreth-Lu
+```
+
+# Input Data
+
+Data yang digunakan bersumber dari:
+
+```{r}
+library(rio)
+data <- import("https://raw.githubusercontent.com/mrnabilnaufal07/mpdw/main/Pertemuan%202/NewDelhi_Air_quality.csv")
+View(data)
+```
+
+# Penyiapan data
+
+```{r}
+#Membuat peubah periode
+Periode = seq(from = 1, to = 72, by = 1)
+data = data[,-c(1,4,10,11,12)] #menghapus beberapa kolom yang tidak diperlukan dan pencilan dalam proses analisis
+
+#Menggabungkan semua peubah ke dalam satu data frame bernama df
+df = data.frame(Periode, data)
+```
+
+# Eksplorasi Data
+
+```{r}
+#Matriks korelasi antar peubah
+library(tidyverse)
+df %>%
+  as_tibble() %>%
+  select(-Periode) %>%
+  cor() %>%
+  ggcorrplot::ggcorrplot(type = "upper", lab = TRUE, lab_size = 3) +
+  theme_light() +
+  labs(title = "Korelasi antar peubah",
+       subtitle = "Peubah respon: AQI.", 
+       caption = "Source: https://www.kaggle.com/datasets/anuragbantu/new-delhi-air-quality",
+       x = NULL, y = NULL)
+```
+
+Dari eksplorasi menggunakan plot korelasi, terlihat bahwa peubah `CO`,
+`no2`, `o3`, dan `so2` memiliki nilai korelasi yang tinggi terhadap
+`AQI`. Oleh karena itu, peubah-peubah inilah yang akan digunakan sebagai
+peubah penjelas dalam tahapan analisis berikutnya.
+
+Sebagai peubah respon: `AQI` Sebagai peubah penjelas: `CO`, `no2`, `o3`,
+dan `so2`
+
+# Pembentukan Penduga Model Regresi
+
+```{r}
+model_aqi = lm(AQI~CO+o3+so2, data=df)
+summary(model_aqi)
+```
+
+Model yang dihasilkan adalah
+$$AQI_i=-2.130858-0.002784CO_i+0.485279O3_i+3.894798SO2_i$$ Dari hasil
+ringkasan model diperoleh beberapa informasi sebagai berikut: 1. Uji F
+$p-value = 0.000 < \alpha= 5% (Tolak H_0)$ Artinya: Minimal terdapat
+satu peubah penjelas yang berpengaruh signifikan terhadap nilai `AQI`
+pada taraf 5%.
+
+2.  Uji t Hasil uji-t parsial parameter regresi koefisien regresi `so3`
+    juga menunjukkan hal yang sama, yaitu memiliki *p-value* \< $\alpha$
+    (5%) sehingga nyata dalam taraf 10%.
+
+3.  $R^2$ Diperoleh nilai $R^2=0.9492$ Artinya, sebesar 94.92% keragaman
+    nilai AQI dapat dijelaskan oleh model yang telah dibentuk. Hasil ini
+    menunjukkan hasil yang bagus, seolah mendapatkan hasil terbaik.
+
+Namun, pengujian asumsi tetap perlu dilakukan
+
+# Pengujian Asumsi
+## Uji Multikolinearitas
+```{r}
+car::vif(model_aqi)
+```
+`Nilai VIF` pada setiap peubah penjelas < 10. Artinya, tidak terjadi multikolinearitas pada peubah penjelas yang digunakan
+
+
+## Sisaan menyebar normal
+```{r}
+#Dengan eksplorasi
+plot(model_aqi,2);
+```
+Hasil QQ-Plot memperlihatkan bahwa titik-titik nya cenderung mengikuti garis kenormalan. Oleh karena itu, dapat disimpulkan bahwa sisaan menyebar normal.
+
+## Nilai harapan sisaan sama dengan nol
+$H_0 : E[\varepsilon]=0$ 
+$H_1 : E[\varepsilon]\ne0$
+
+```{r}
+# Uji t
+t.test(resid(model_aqi), mu = 0,)
+```
+
+$p-value=1> 0.1$ (tidak tolak $H_0$) Artinya: Nilai harapan sisaan sama dengan nol
+
+## Ragam sisaan homogen
+
+$H_0: Var[\varepsilon]=\sigma^2I$ 
+$H_1:Var[\varepsilon]\ne \sigma^2I$
+
+```{r}
+# Uji Breusch-Pagan
+lmtest::bptest(model_aqi)
+```
+
+$p-value=0.6237> 0.1$ (tidak tolak $H_0$) Artinya: Ragam sisaan homogen
+
+
+## Antar sisaan tidak saling berkorelasi (tidak terjadi autokorelasi)
+$H_0 : Cov[\varepsilon_i,\varepsilon_j]=0$ (tidak terjadi autokorelasi pada sisaan) 
+$H_0 : Cov[\varepsilon_i,\varepsilon_j]\neq0$ (terjadi autokorelasi pada sisaan)
+
+```{r}
+# Uji Durbin Watson
+library(lmtest)
+dwtest(model_aqi)
+
+
+#ACF dan PACF identifikasi autokorelasi
+sisaan = model_aqi$residuals
+par(mfrow = c(1,2))
+acf(sisaan)
+pacf(sisaan)
+
+```
+$p-value=0.00<0.1$ (tolak $H_0$)
+Artinya: Terjadi autkorelasi pada sisaan pada taraf `5%`
+
+Perlu penanganan autokorelasi
+
+## Penanganan Autokorelasi
+
+### Metode Cochrane-Orcutt
+
+Penanganan metode Cochrane-Orcutt dapat dilakukan dengan bantuan
+packages Orcutt pada aplikasi `R` maupun secara manual. Berikut ini
+ditampilkan cara menggunakan bantuan `library` *packages* `Orcutt`.
+
+```{r}
+#Penanganan Autokorelasi Cochrane-Orcutt
+library(orcutt)
+modelCO<-cochrane.orcutt(model_aqi)
+modelCO
+```
+Hasil keluaran model setelah dilakukan penanganan adalah sebagai
+berikut. $$y_i=4.989103 -0.031450CO_i+0.483940O3_i-0.027116SO2_i$$ Hasil juga menunjukkan bahwa
+nilai DW dan p-value meningkat menjadi $2.71731$ dan $9.976e-01$. Nilai DW
+sudah berada pada rentang DU \< DW \< 4-DU.
+Hal tersebut juga didukung dengan nilai *p-value* \> 0.05, artinya belum
+cukup bukti menyatakan bahwa sisaan terdapat autokorelasi pada taraf
+nyata 5%. Untuk nilai $ρ ̂$ optimum yang digunakan adalah $0.46121$.
+
+```{r}
+#Rho optimum
+rho<- modelCO$rho
+rho
+```
+
+### Metode Hildreth-Lu
+
+Penanganan kedua adalah menggunakan metode Hildreth-Lu. Metode ini akan
+mencari nilai SSE terkecil dan dapat dicari secara manual maupun
+menggunakan packages. Jika menggunakan packages, gunakan `library`
+*packages* `HORM`.
+
+```{r}
+#Penanganan Autokorelasi Hildreth lu
+# Hildreth-Lu
+hildreth.lu.func<- function(r, model){
+  x <- model.matrix(model)[,-1]
+  y <- model.response(model.frame(model))
+  n <- length(y)
+  t <- 2:n
+  y <- y[t]-r*y[t-1]
+  x <- x[t]-r*x[t-1]
+  
+  return(lm(y~x))
+}
+
+#Pencariab rho yang meminimumkan SSE
+r <- c(seq(0.1,0.9, by= 0.1))
+tab <- data.frame("rho" = r, "SSE" = sapply(r, function(i){deviance(hildreth.lu.func(i, model))}))
+round(tab, 4)
+```
+
+Pertama-tama akan dicari di mana kira-kira $ρ$ yang menghasilkan SSE
+minimum. Pada hasil di atas terlihat $ρ$ minimum ketika 0.1. Namun,
+hasil tersebut masih kurang teliti sehingga akan dicari kembali $ρ$ yang
+lebih optimum dengan ketelitian yang lebih. Jika sebelumnya jarak antar
+$ρ$ yang dicari adalah 0.1, kali ini jarak antar $ρ$ adalah 0.001 dan
+dilakukan pada selang 0.2 sampai dengan 0.5.
+
+```{r}
+#Rho optimal di sekitar 0.4
+rOpt <- seq(0.2,0.5, by= 0.001)
+tabOpt <- data.frame("rho" = rOpt, "SSE" = sapply(rOpt, function(i){deviance(hildreth.lu.func(i, model))}))
+head(tabOpt[order(tabOpt$SSE),])
+
+#Grafik SSE optimum
+par(mfrow = c(1,1))
+plot(tab$SSE ~ tab$rho , type = "l", xlab = "Rho", ylab = "SSE")
+abline(v = tabOpt[tabOpt$SSE==min(tabOpt$SSE),"rho"], lty = 2, col="red",lwd=2)
+text(x=0.341, y=0.2397500, labels = "rho=0.341", cex = 0.8)
+```
+
+Perhitungan yang dilakukan aplikasi `R` menunjukkan bahwa nilai $ρ$
+optimum, yaitu saat SSE terkecil terdapat pada nilai $ρ=0.341$. Hal
+tersebut juga ditunjukkan pada plot. Selanjutnya, model dapat didapatkan
+dengan mengevaluasi nilai $ρ$ ke dalam fungsi `hildreth.lu.func`, serta
+dilanjutkan dengan pengujian autokorelasi dengan uji Durbin-Watson.
+Namun, setelah pengecekan tersebut tidak lupa koefisien regresi tersebut
+digunakan untuk transformasi balik. Persamaan hasil transformasi itulah
+yang menjadi persamaan sesungguhnya.
+
+```{r}
+#Model terbaik
+modelHL <- hildreth.lu.func(0.341, model)
+summary(modelHL)
+
+#Transformasi Balik
+cat("y = ", coef(modelHL)[1]/(1-0.341), "+", coef(modelHL)[2],"x", sep = "")
+```
+
+Setelah dilakukan tranformasi balik, didapatkan model dengan metode
+Hildreth-Lu sebagai berikut. $$y_i=-1062.032+0.5597492x_t$$
+
+```{r}
+#Deteksi autokorelasi
+dwtest(modelHL)
+```
+
+Hasil uji Durbin-Watson juga menunjukkan bawah nilai DW sebesar $1.4092$
+berada pada selang daerah tidak ada autokorelasi, yaitu pada rentang DU
+\< DW \< 4-DU atau $1.331 < DW < 2.669$. Hal tersebut juga didukung oleh
+*p-value* sebesar $0.09404$, di mana *p-value* \> $\alpha$=5%. Artinya
+tak tolak $H_0$ atau belum cukup bukti menyatakan bahwa ada autokorelasi
+dalam data nilai IPM dengan metode Hildreth-Lu pada taraf nyata 5%.
+
+Terakhir, akan dibandingkan nilai SSE dari ketiga metode (metode awal,
+metode Cochrane-Orcutt, dan Hildreth-Lu).
+
+```{r}
+#Perbandingan
+sseModelawal <- anova(model)$`Sum Sq`[-1]
+sseModelCO <- anova(modelCOmanual)$`Sum Sq`[-1]
+sseModelHL <- anova(modelHL)$`Sum Sq`[-1]
+mseModelawal <- sseModelawal/length(ipm)
+mseModelCO <- sseModelCO/length(ipm)
+mseModelHL <- sseModelHL/length(ipm)
+akurasi <- matrix(c(sseModelawal,sseModelCO,sseModelHL,
+                    mseModelawal,mseModelCO,mseModelHL),nrow=2,ncol=3,byrow = T)
+colnames(akurasi) <- c("Model Awal", "Model Cochrane-Orcutt", "Model Hildreth-Lu")
+row.names(akurasi) <- c("SSE","MSE")
+akurasi
+```
+
+Berdasarkan hasil tersebut dapat diketahui bahwa hasil penanganan
+autokorelasi dengan metode Cochrane-Orcutt dan Hildreth-Lu memiliki SSE
+yang sama, sebesar $0.23975$ dan lebih baik dibandingkan model awal
+ketika autokorelasi masih terjadi, yaitu sebesar $0.3286364$.
+
+# Simpulan
+
+Autokorelasi yang terdapat pada data IPM terjadi akibat adanya korelasi
+di antara unsur penyusunnya. Indikator IPM yang erat hubungannya dengan
+perekonomian sangat rawan menjadi penyebab adanya autokorelasi. Adanya
+autokorelasi menyebabkan model regresi kurang baik karena akan
+meingkatkan galatnya. Autokorelasi dapat dideteksi secara eksploratif
+melalui plot sisaan, ACF, dan PACF, serta dengan uji formal
+Durbin-Watson. Namun, autokorelasi tersebut dapat ditangani dengan
+metode Cochrane-Orcutt dan Hildreth-Lu. Kedua metode menghasilkan nilai
+SSE yang sama, artinya keduanya baik untuk digunakan.
+
+# Daftar Pustaka
+
+Aprianto A, Debataraja NN, Imro'ah N. 2020. Metode cochrane-orcutt untuk
+mengatasi autokorelasi pada estimasi parameter ordinary least squares.
+*Bimaster : Buletin Ilmiah Matematika, Statistika dan Terapannya*.
+9(1):95--102. <doi:10.26418/bbimst.v9i1.38590>.
+
+BPS. 2021a. *Indeks Pembangunan Manusia 2020*. Jakarta (ID): Badan Pusat
+Statistik.
+
+BPS. 2021b. Indeks Pembangunan Manusia (IPM) 2021. *Berita Resmi
+Statistik*., siap terbit.
