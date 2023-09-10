@@ -135,7 +135,7 @@ Artinya: Ragam sisaan homogen
 
 ## Antar sisaan tidak saling berkorelasi (tidak terjadi autokorelasi)
 $H_0 : Cov[\varepsilon_i,\varepsilon_j]=0$ (tidak terjadi autokorelasi pada sisaan) 
-$H_0 : Cov[\varepsilon_i,\varepsilon_j]\neq0$ (terjadi autokorelasi pada sisaan)
+$H_1 : Cov[\varepsilon_i,\varepsilon_j]\neq0$ (terjadi autokorelasi pada sisaan)
 
 ```{r}
 # Uji Durbin Watson
