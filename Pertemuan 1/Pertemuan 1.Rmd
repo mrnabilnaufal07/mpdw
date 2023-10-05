@@ -1,11 +1,16 @@
 ---
-title: "Tugas Pertemuan 1 - Pemulusan"
-author: "Nabil Naufal"
-date: "2023-09-03"
+title: "Pemulusan"
+author: Nabil Naufal (G1401211008)
 output:
-  html_document: default
-  pdf_document: default
+  html_document:
+    theme: yeti
+    toc: true
+    toc_float: true
   word_document: default
+  pdf_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ## Library yang digunakan
@@ -55,7 +60,7 @@ Membagi data menjadi data `training` dan data `testing` dengan proporsi 80% data
 ```{r}
 #membagi data menjadi training dan testing
 training<-data[1:137,2] #data 1-137 merupakan 80% data pertama
-testing<-data3[138:172,2] #data 138-172 merupakan 20% data selanjutnya
+testing<-data[138:172,2] #data 138-172 merupakan 20% data selanjutnya
 
 #frecuency menunjukkan banyaknya periode waktu dalam satu musim. Untuk data ini, satu periode diperkirakan terdiri dari 61 periode (hasil eksplorasi)
 training.ts<-ts(training, frequency = 61)

@@ -154,7 +154,7 @@ finiteDLMauto(formula = Yt ~ Xt,
 Diperoleh lag optimum untuk peubah $O_3$ adalah 10 hari sebelumnya.
 Selanjutnya dilakukan pemodelan kembali dengan $q=10$
 
-### Peramalan dan Akurasi Model DLM (Distribution Lag Model)
+### Peramalan dan Akurasi Model DLM (Distributed Lag Model)
 
 ```{r}
 #model dlm dengan lag optimum
@@ -278,6 +278,8 @@ jauh berbeda. Artinya, model regresi dengan distribusi lag ini
 tidak `overfitted` atau `underfitted`
 
 ## Perbandingan Model
+
+### Akurasi
 
 ```{r}
 akurasi <- matrix(c(mape.koyck, mape.dlm, mape.ardl))

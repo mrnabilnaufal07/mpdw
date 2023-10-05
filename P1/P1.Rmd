@@ -813,7 +813,6 @@ akurasi2.train
 ```
 
 #### Akurasi Data Uji
-
 ```{r}
 #Akurasi Data Testing
 forecast2<-data.frame(forecast2)
