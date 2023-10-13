@@ -2173,6 +2173,15 @@ perbandingan.da</code></pre>
 <pre class="r"><code>accuracy(ts(hasil[-1]), head(test.ts, n=30))</code></pre>
 <pre><code>##                ME     RMSE      MAE      MPE     MAPE       ACF1 Theil&#39;s U
 ## Test set 7.829839 10.60193 8.466299 18.07318 20.46849 0.09501679  1.118426</code></pre>
+<p>Didapati bahwa nilai MAPE mencapai 20.47%, yang mengindikasikan bahwa
+model prediksi rata-rata mengalami deviasi sekitar 21% dari nilai
+sebenarnya. Saat dilakukan pengecekan stasioneritas, ditemukan bahwa
+data tidak menunjukkan stasioneritas baik dalam rataan maupun dalam
+ragam. Namun, dalam analisis ini, hanya masalah ketidakstasioneran dalam
+rataan yang telah diatasi. Sayangnya, ketidakstasioneran dalam ragam
+masih menjadi permasalahan yang belum terpecahkan. Hal ini dapat
+berpotensi menjadi salah satu penyebab mengapa nilai MAPE dari model
+masih relatif tinggi.</p>
 </div>
 
 

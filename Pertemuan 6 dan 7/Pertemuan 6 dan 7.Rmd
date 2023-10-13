@@ -334,4 +334,4 @@ colnames(perbandingan.da)<-c("Aktual","Hasil Forecast")
 perbandingan.da
 accuracy(ts(hasil[-1]), head(test.ts, n=30))
 ```
-
+Didapati bahwa nilai MAPE mencapai 20.47%, yang mengindikasikan bahwa model prediksi rata-rata mengalami deviasi sekitar 21% dari nilai sebenarnya. Saat dilakukan pengecekan stasioneritas, ditemukan bahwa data tidak menunjukkan stasioneritas baik dalam rataan maupun dalam ragam. Namun, dalam analisis ini, hanya masalah ketidakstasioneran dalam rataan yang telah diatasi. Sayangnya, ketidakstasioneran dalam ragam masih menjadi permasalahan yang belum terpecahkan. Hal ini dapat berpotensi menjadi salah satu penyebab mengapa nilai MAPE dari model masih relatif tinggi.
