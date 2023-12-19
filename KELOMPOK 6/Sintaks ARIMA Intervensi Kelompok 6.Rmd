@@ -1,0 +1,410 @@
+---
+title: "Sintaks ARIMA Intervensi"
+author: "Kelompok 6"
+date: "2023-11-01"
+output: 
+  rmdformats::readthedown: 
+    theme: yeti
+    toc: 6
+    toc_float: TRUE
+---
+
+# Packages yang digunakakan
+
+```{r}
+library(ggplot2)
+library(tsibble)
+library(tseries)
+library(MASS)
+library(forecast)
+library(TSA)
+library(TTR)
+library(aTSA)
+library(graphics)
+```
+
+
+## Penyiapan Data
+
+```{r}
+#Input data
+meta = rio::import("https://raw.githubusercontent.com/mrnabilnaufal07/mpdw/main/KELOMPOK%206/saham_meta%20-%20Close.csv")
+n = NROW(meta)
+
+#Menghapus data Date dan Periode
+meta.close <- meta$Close
+View(meta)
+
+#Mengubah tipe data menjadi time series
+meta.ts<-ts(meta.close)
+```
+
+
+## Eksplorasi Data
+### Plot Data Penuh
+```{r}
+plot.ts(meta.ts, xlab="waktu", ylab="Harga Close Saham Meta (USD)", main="Plot Harga Close Saham Meta (USD)")
+```
+Berdasarkan plot data deret waktu, terlihat bahwa data memiliki pola tren naik pada periode 1 hingga 190 an. Namun, memasuki periode 200 tren data mulai menurun Berdasarkan pola data, pembagian data latih dan data uji ditetapkan dengan proporsi 90%:10%.
+
+### Plot Data Latih
+
+```{r}
+meta.train<-meta$Close[1:275]
+train.ts<-ts(meta.train)
+plot.ts(train.ts, lty=1, xlab="waktu", ylab="Harga Close Saham Meta (USD)", main="Plot Harga Close Saham Meta (USD)")
+```
+
+Berdasarkan plot data deret waktu pada data latih, terlihat bahwa data cenderung memiliki trend yang naik dan turun. Hal ini mengindikasikan bahwa data tidak stasioner dalam rataan.
+
+### Plot Data Uji
+```{r}
+meta.test<-meta$Close[276:305]
+test.ts<-ts(meta.test)
+plot.ts(test.ts, lty=1, xlab="waktu", ylab="Harga Close Saham Meta (USD)", main="Plot Harga Close Saham Meta (USD)")
+```
+
+# Analisis Intervensi pada Model ARIMA
+## Membagi Data
+```{r}
+#==========MEMBAGI DATA INTERVENSI DAN SEBELUM INTERVENSI
+data_sblm_intervensi<-ts(meta.train[1:207])
+data_stlh_intervensi<-ts(meta.train[208:275])
+```
+
+## Kestasioneran Dalam Ragam
+### Plot Box-Cox
+
+```{r}
+index.intervensi <- seq(1:207)
+bc.intervensi = boxcox(data_sblm_intervensi~index.intervensi, lambda = seq(-0.5,0.5,by=0.01))
+
+#Nilai Rounded Lambda
+lambda.intervensi <- bc.intervensi$x[which.max(bc.intervensi$y)]
+lambda.intervensi
+
+#SK
+bc.intervensi$x[bc.intervensi$y > max(bc.intervensi$y) - 1/2 * qchisq(.95,1)]
+```
+
+Plot Boxcox menunjukkan nilai *rounded value* ($\lambda$) optimum sebesar **-0.06** dan pada selang kepercayaan 95% nilai memiliki batas bawah **-0.42** dan batas atas **0.31**. Selang tersebut tidak memuat nilai satu sehingga dapat dikatakan bahwa data yang digunakan tidak stasioner dalam ragam. 
+Nilai lambda = 0 dipilih untuk melakukan transformasi,dengan transformasi yang digunakan adalah logaritma natural.
+
+### Penanganan Ketidakstasioneran dalam ragam (Lambda = 0)
+```{r}
+# transformasi dengan nilai lambda = 0
+data_boxcox_intervensi = log(data_sblm_intervensi)
+
+par(mfrow=c(1,2))
+plot.ts(data_sblm_intervensi, lty=1, xlab="waktu", ylab="death", main="Plot Data Train")
+plot.ts(data_boxcox_intervensi, lty=1, xlab="waktu", ylab="death", main="Plot Data Train (Transformasi)")
+```
+
+### Plot Box-Cox
+
+```{r}
+index2.intervensi <- seq(1:207)
+bc2.intervensi = boxcox(data_boxcox_intervensi~index2.intervensi, lambda = seq(-1.5,3.5,by=0.01))
+
+#Nilai Rounded Lambda
+lambda2.intervensi <- bc2.intervensi$x[which.max(bc2.intervensi$y)]
+lambda2.intervensi
+
+#SK
+bc2.intervensi$x[bc2.intervensi$y > max(bc2.intervensi$y) - 1/2 * qchisq(.95,1)]
+```
+Plot Boxcox memuat nilai satu sehingga dapat dikatakan bahwa data yang digunakan sudah stasioner dalam ragam.
+
+
+## Kestasioneran Dalam Rataan
+
+### Plot ACF
+
+```{r}
+acf(data_boxcox_intervensi)
+```
+
+Berdasarkan plot ACF, terlihat bahwa plot ACF data menurun secara perlahan (*tails of slowly*). Hal ini juga menjadi indikasi bahwa data tidak stasioner dalam rataan
+
+### Uji ADF
+
+```{r}
+tseries::adf.test(data_boxcox_intervensi)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar  0.2287 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa data tidak stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF, sehingga ketidakstasioneran model kedepannya harus ditangani
+
+
+### Penanganan Ketidakstasioneran dalam rataan
+```{r}
+train.diff.intervensi<-diff(data_boxcox_intervensi,differences = 1) 
+plot.ts(train.diff.intervensi, lty=1, xlab="waktu", ylab="Data Difference 1 Saham Meta (USD)", main="Plot Harga Close Saham Meta (USD)")
+```
+
+Berdasarkan plot data deret waktu, terlihat bahwa data sudah stasioner dalam rataan ditandai dengan data bergerak pada nilai tengah tertentu (tidak terdapat trend ataupun musiman pada data)
+
+#### Plot ACF
+
+```{r}
+acf(train.diff.intervensi)
+```
+
+Berdasarkan plot tersebut, tidak terlihat adanya *tailss off slowly*. Namun, akan dipastikan kembali dengan pengujian formal.
+
+#### Uji ADF
+
+```{r}
+tseries::adf.test(train.diff.intervensi)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.01 yang lebih kecil dari taraf nyata 5% sehingga tolak $H_0$ atau data stasioner dalam rataan. Dalam hal ini ketidakstasioneran data dalam rataan sudah berhasil ditangani dan dapat dilanjutkan ke pemodelan
+
+## Identifikasi Model
+
+### Plot ACF
+
+```{r}
+acf(train.diff.intervensi)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot ACF tidak *cut off*.
+
+### Plot PACF
+
+```{r}
+pacf(train.diff.intervensi)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot PACF tidak *cuts off*.
+Plot ACF dan PACF tidak menghasilkan model tentatif, sehingga akan digunakan plot EACF.
+
+### Plot EACF
+```{r}
+eacf(train.diff.intervensi)
+```
+
+Identifikasi model menggunakan plot EACF dilakukan dengan melihat ujung segitiga pada pola segitiga nol. Dalam hal ini model tentatif yang terbentuk adalah ARIMA(1,1,1), ARIMA(2,1,1), ARIMA(3,1,3).
+
+Untuk eksplorasi, akan ditambahkan juga model ARIMA(0,1,1)
+
+## Pendugaan Parameter Model Tentatif
+
+### ARIMA(1,1,1)
+
+```{r}
+model1.da.intv=Arima(data_boxcox_intervensi, order=c(1,1,1),method="ML")
+summary(model1.da.intv) #AIC=-677.85    
+lmtest::coeftest(model1.da.intv) #tidak ada yang signifikan
+```
+
+### ARIMA(2,1,1)
+
+```{r}
+model2.da.intv=Arima(data_boxcox_intervensi, order=c(2,1,1),method="ML")
+summary(model2.da.intv) #AIC=-676.46
+lmtest::coeftest(model2.da.intv) #tidak ada yang signifikan
+```
+
+### ARIMA(3,1,3)
+
+```{r}
+model3.da.intv=Arima(data_boxcox_intervensi, order=c(3,1,3),method="ML")
+summary(model3.da.intv) #AIC=-678.49 
+lmtest::coeftest(model3.da.intv) #semuanya signifikan
+```
+
+### ARIMA(0,1,1)
+
+```{r}
+model4.da.intv=Arima(data_boxcox_intervensi, order=c(0,1,1),method="ML")
+summary(model4.da.intv) #AIC=-679.36 
+lmtest::coeftest(model4.da.intv) #tidak ada yang signifikan
+```
+```{r}
+knitr::kable(
+  cbind(c("ARIMA (1,1,1)","ARIMA (2,1,1)","ARIMA (3,1,3)","ARIMA (0,1,1)"),
+        c(model1.da.intv$aic,model2.da.intv$aic,model3.da.intv$aic,model4.da.intv$aic)),
+  col.names=c("Model","AIC")
+)
+```
+
+Berdasarkan pendugaan parameter di atas, model ARIMA(3,1,3) dengan hampir seluruh parameternya signifikan pada taraf 5% . Nilai AIC nya juga kedua terkecil, hanya berbeda 0.2 saja dengan model ARIMA(0,1,1).
+
+## Analisis Sisaan
+
+Model terbaik hasil identifikasi kemudian dicek asumsi sisaannya. Sisaan model ARIMA harus memenuhi asumsi normalitas, kebebasan sisaan, dan kehomogenan ragam. Diagnostik model dilakukan secara eksplorasi dan uji formal.
+
+### Eksplorasi Sisaan
+
+```{r}
+#Eksplorasi 
+sisaan.da.intv <- model3.da.intv$residuals 
+par(mfrow=c(2,2)) 
+qqnorm(sisaan.da.intv) 
+qqline(sisaan.da.intv, col = "blue", lwd = 2) 
+plot(c(1:length(sisaan.da.intv)),sisaan.da.intv) 
+acf(sisaan.da.intv) 
+pacf(sisaan.da.intv) 
+par(mfrow = c(1,1))
+```
+
+Berdasarkan plot kuantil-kuantil normal, secara eksplorasi ditunjukkan sisaan tidak menyebar normal ditandai dengan titik titik yang cenderung tidak mengikuti garis $45^{\circ}$. Kemudian dapat dilihat juga lebar pita sisaan yang cenderung tidak sama menandakan bahwa sisaan memiliki ragam yang tidak homogen. Plot ACF dan PACF sisaan ARIMA(1,1,1) juga ada yang signifikan pada 20 lag awal yang menandakan tidak saling bebas. Kondisi ini akan diuji lebih lanjut dengan uji formal.
+
+### Uji Formal
+
+```{r}
+#1) Sisaan Menyebar Normal 
+tseries::jarque.bera.test(sisaan.da.intv);  #tak tolak H0 > sisaan menyebar normal
+nortest::ad.test(sisaan.da.intv)
+```
+
+Selain dengan eksplorasi, asumsi tersebut dapat diuji menggunakan uji formal. Pada tahapan ini uji formal yang digunakan untuk normalitas adalah uji Jarque Bera . Hipotesis pada uji Jarque Bera adalah sebagai berikut.
+
+$H_0$ : Sisaan menyebar normal
+
+$H_1$ : Sisaan tidak menyebar normal
+
+Berdasarkan uji Jarque-Bera tersebut, didapat *p-value* sebesar  1.952e-07 yang kurang dari taraf nyata 5% sehingga tolak $H_0$ dan menandakan bahwa sisaan tidak menyebar normal. Hal ini sesuai dengan hasil eksplorasi menggunakan plot kuantil-kuantil normal.
+
+```{r}
+#2) Sisaan saling bebas/tidak ada autokorelasi 
+Box.test(sisaan.da.intv, type = "Ljung")  #tak tolak H0 > sisaan saling bebas
+```
+
+Selanjutnya akan dilakukan uji formal untuk kebebasan sisaan menggunakan uji Ljung-Box. Hipotesis yang digunakan adalah sebagai berikut.
+
+$H_0$ : Sisaan saling bebas
+
+$H_1$ : Sisaan tidak tidak saling bebas
+
+Berdasarkan uji Ljung-Box tersebut, didapat *p-value* sebesar 0.715 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa sisaan saling bebas. Hal ini tidak sesuai dengan hasil eksplorasi.
+
+```{r}
+#3) Sisaan homogen 
+Box.test((sisaan.da.intv)^2, type = "Ljung")  #tak tolak H0 > sisaan homogen
+```
+
+Hipotesis yang digunakan untuk uji kehomogenan ragam adalah sebagai berikut.
+
+$H_0$ : Ragam sisaan homogen
+
+$H_1$ : Ragam sisaan tidak homogen
+
+Berdasarkan uji Ljung-Box terhadap sisaan kuadrat tersebut, didapat *p-value* sebesar  0.708 yang lebih dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa ragam sisaan homogen.
+
+```{r}
+#4) Nilai tengah sisaan sama dengan nol 
+t.test(sisaan.da.intv, mu = 0, conf.level = 0.95)  #tak tolak h0 > nilai tengah sisaan sama dengan 0
+```
+
+Terakhir, dengan uji-t, akan dicek apakah nilai tengah sisaan sama dengan nol. Hipotesis yang diujikan sebagai berikut.
+
+$H_0$ : nilai tengah sisaan sama dengan 0
+
+$H_1$ : nilai tengah sisaan tidak sama dengan 0
+
+Berdasarkan uji-ttersebut, didapat *p-value* sebesar 0.4558 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa nilai tengah sisaan sama dengan nol. Hal ini sama dengan hasil eksplorasi.
+
+
+## Overfitting
+Tahapan selanjutnya adalah *overfitting* dilakukan dengan menaikkan orde AR(p) dan MA(q) dari model ARIMA(3,1,3) untuk melihat apakah terdapat model lain yang lebih baik dari model saat ini. Kandidat model *overfitting* adalah ARIMA(3,1,4) dan ARIMA(4,1,3).
+
+### Model ARIMA(3,1,4)
+```{r}
+model.overfit1.intv=Arima(data_boxcox_intervensi, order=c(3,1,4),method="ML")
+summary(model.overfit1.intv) #-674.5    
+lmtest::coeftest(model.overfit1.intv) #hanya ma3 yang signifikan
+```
+
+### Model ARIMA(4,1,3)
+```{r}
+model.overfit2.intv=Arima(data_boxcox_intervensi, order=c(4,1,3),method="ML")
+summary(model.overfit2.intv) #-701.38   
+lmtest::coeftest(model.overfit2.intv) #hanya ma3 yang signifikan
+
+#model yang dipilih adalah model awal, yaitu ARIMA(3,1,3)
+```
+# Penentuan Ordo Intervensi
+```{r}
+ ## Analisis Intervensi ##
+model_terbaik = model3.da.intv
+
+par(mfrow=c(1,1))
+forecast_int<-predict(model_terbaik,n.ahead=68)
+forecast_int<-forecast_int$pred
+forecast_int<-ts(forecast_int)
+forecast_int
+error_idintv<-rep(0,275)
+error_idintv[1:207]<-model_terbaik$residuals
+resi<-(data_stlh_intervensi)-(forecast_int)
+error_idintv[208:275]<-resi
+error_idintv<-ts(error_idintv)
+ts.plot(error_idintv, type="h", xlab="waktu ", ylab="residual", xaxt="n")
+abline(h=c(-3*0.04452918, 3*0.04452918), col="red", lyt=1)
+abline(v=208, col="blue", lty=1, lwd=2)
+text(193, 200, "T=208",cex=0.8,pos=3)
+```
+Karena pola mulai berubah saat intervensi terjadi, maka ordo b bernilai 0. Untuk ordo s dan r akan dipilih melalui metode trial dan error hingga diperoleh hasil yang paling optimum. Untuk prosesnya dilakukan menggunakan software SAS. Berikut merupakan hasilnya:
+
+## b=0, s=1, r=0
+```{r}
+knitr::include_graphics("C:\\Users\\mrnab\\Downloads\\images\\b=0, s=1, r=0.png")
+
+```
+
+## b=0, s=2, r=0
+```{r}
+knitr::include_graphics("C:\\Users\\mrnab\\Downloads\\images\\b=0, s=2, r=0.png")
+
+```
+
+## b=0, s=3, r=0
+```{r}
+knitr::include_graphics("C:\\Users\\mrnab\\Downloads\\images\\b=0, s=3, r=0.png")
+
+```
+
+## b=0, s=4, r=0
+```{r}
+knitr::include_graphics("C:\\Users\\mrnab\\Downloads\\images\\b=0, s=4, r=0.png")
+
+```
+
+## b=0, s=3, r=1
+```{r}
+knitr::include_graphics("C:\\Users\\mrnab\\Downloads\\images\\b=0, s=3, r=1.png")
+
+```
+
+## b=0, s=4, r=1
+```{r}
+knitr::include_graphics("C:\\Users\\mrnab\\Downloads\\images\\b=0, s=4, r=1.png")
+
+```
+Pada ordo b=0, s=4, r=1, hampir seluruh parameternya signifikan. Oleh karena itu, ordo ini dipilih sebagai ordo intervensinya
+
+
+```{r}
+ts_testings = ts(meta.close[276:305]) #buat cek akurasi hasil SAS vs R
+```
+
+# Data hasil peramalan ARIMA Intervensi
+
+```{r}
+library(readxl)
+deta5<-read_excel("C:/Users/mrnab/Downloads/prediksi_sas 041.xlsx", sheet = "Prediksi")
+deta5 = deta5$Prediksi
+ramalan_intervensi5 <-ts(deta5)
+ramalan_intervensi5<-round(ramalan_intervensi5,0)
+akurasi_intervensi5<-accuracy(ramalan_intervensi5, ts_testings)
+akurasi_intervensi5
+```
+
